@@ -32,16 +32,17 @@ public:
     explicit Array(const Buffer& buffer, size_t size = 0)
         : mSize(size)
     {
-        SetBuffer(buffer);
+        SetBuffer(buffer, size);
     }
 
+    // cppcheck-suppress noExplicitConstructor
     /**
-     * Creates array instance from const C array.
+     * Creates array instance from C array.
      *
      * @param items const C array.
      * @param size C array size.
      */
-    Array(const T* items, size_t size)
+    Array(T* items, size_t size = 0)
         : mItems(items)
         , mSize(size)
         , mMaxSize(size)
@@ -276,10 +277,10 @@ protected:
     {
     }
 
-    void SetBuffer(const Buffer& buffer)
+    void SetBuffer(const Buffer& buffer, size_t size)
     {
-
         mMaxSize = buffer.Size() / sizeof(T);
+        mSize = size;
 
         assert(mMaxSize != 0);
         assert(mSize <= mMaxSize);
@@ -296,12 +297,7 @@ private:
 template <typename T, size_t cMaxSize>
 class StaticArray : public Array<T> {
 public:
-    explicit StaticArray(size_t size = 0)
-    {
-        Array<T>::SetBuffer(mBuffer);
-        auto err = Array<T>::Resize(size);
-        assert(err.IsNone());
-    }
+    explicit StaticArray(size_t size = 0) { Array<T>::SetBuffer(mBuffer, size); }
 
 private:
     StaticBuffer<cMaxSize * sizeof(T)> mBuffer;
@@ -313,9 +309,7 @@ public:
     explicit DynamicArray(size_t size = 0)
         : mBuffer(cMaxSize * sizeof(T))
     {
-        Array<T>::SetBuffer(mBuffer);
-        auto err = Array<T>::Resize(size);
-        assert(err.IsNone());
+        Array<T>::SetBuffer(mBuffer, size);
     }
 
 private:
