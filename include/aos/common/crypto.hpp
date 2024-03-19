@@ -484,6 +484,15 @@ public:
     virtual Error PEMToX509Certs(const String& pemBlob, Array<Certificate>& resultCerts) = 0;
 
     /**
+     * Serializes input Certificate object into a PEM blob.
+     *
+     * @param certificate input certificate object.
+     * @param[out] dst destination buffer.
+     * @result Error.
+     */
+    virtual Error X509CertToPEM(const Certificate& certificate, String& dst) = 0;
+
+    /**
      * Reads private key from a PEM blob.
      *
      * @param pemBlob raw certificates in a PEM format.

@@ -13,6 +13,7 @@
 
 #include <mbedtls/asn1write.h>
 #include <mbedtls/oid.h>
+#include <mbedtls/pem.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/platform.h>
 #include <mbedtls/x509.h>
@@ -265,6 +266,24 @@ Error MbedTLSCryptoProvider::PEMToX509Certs(const String& pemBlob, Array<x509::C
     }
 
     mbedtls_x509_crt_free(&crt);
+
+    return ErrorEnum::eNone;
+}
+
+Error MbedTLSCryptoProvider::X509CertToPEM(const x509::Certificate& certificate, String& dst)
+{
+    static constexpr auto cPEMBeginCert = "-----BEGIN CERTIFICATE-----\n";
+    static constexpr auto cPEMEndCert   = "-----END CERTIFICATE-----\n";
+
+    size_t olen;
+
+    auto ret = mbedtls_pem_write_buffer(cPEMBeginCert, cPEMEndCert, certificate.mRaw.Get(), certificate.mRaw.Size(),
+        reinterpret_cast<uint8_t*>(dst.Get()), dst.Size(), &olen);
+    if (ret != 0) {
+        return AOS_ERROR_WRAP(ret);
+    }
+
+    dst.Resize(olen);
 
     return ErrorEnum::eNone;
 }

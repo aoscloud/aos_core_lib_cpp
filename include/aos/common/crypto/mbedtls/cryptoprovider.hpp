@@ -55,6 +55,15 @@ public:
     Error PEMToX509Certs(const String& pemBlob, Array<x509::Certificate>& resultCerts) override;
 
     /**
+     * Serializes input Certificate object into a PEM blob.
+     *
+     * @param certificate input certificate object.
+     * @param[out] dst destination buffer.
+     * @result Error.
+     */
+    Error X509CertToPEM(const x509::Certificate& certificate, String& dst) override;
+
+    /**
      * Reads certificate from a DER blob.
      *
      * @param derBlob raw certificate in a DER format.
