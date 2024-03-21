@@ -10,13 +10,14 @@
 namespace aos {
 namespace test {
 
-Error SoftHSMEnv::Init(const String& pin, const String& label)
+Error SoftHSMEnv::Init(
+    const String& pin, const String& label, const char* confFile, const char* tokensDir, const char* libPath)
 {
     // Clear softhsm directory
-    FS::ClearDir(SOFTHSM_BASE_DIR "/tokens");
-    setenv("SOFTHSM2_CONF", SOFTHSM_BASE_DIR "/softhsm2.conf", true);
+    FS::ClearDir(tokensDir);
+    setenv("SOFTHSM2_CONF", confFile, true);
 
-    mLibrary = mManager.OpenLibrary(SOFTHSM2_LIB);
+    mLibrary = mManager.OpenLibrary(libPath);
     if (!mLibrary) {
         return ErrorEnum::eFailed;
     }
