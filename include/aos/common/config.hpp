@@ -464,8 +464,18 @@
 #define AOS_CONFIG_CRYPTOUTILS_DEFAULT_PKCS11_LIB "/usr/lib/softhsm/libsofthsm2.so"
 #endif
 
+/**
+ * Maximum number of public keys to be allocated by cryptoprovider simultaneously.
+ */
 #ifndef AOS_CONFIG_CRYPTOPROVIDER_PUB_KEYS_COUNT
 #define AOS_CONFIG_CRYPTOPROVIDER_PUB_KEYS_COUNT 5
+#endif
+
+/**
+ * Size of a time in string representation.
+ */
+#ifndef AOS_TIME_STRING_LENGTH
+#define AOS_TIME_STRING_LENGTH 16
 #endif
 
 #endif

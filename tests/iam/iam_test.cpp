@@ -109,152 +109,6 @@ void CheckArray(const Array<T>& actual, const std::initializer_list<U>& expected
     EXPECT_THAT(std::vector<T>(actual.begin(), actual.end()), ElementsAreArray(expected));
 }
 
-void ParseDN(const mbedtls_x509_name& dn, String& result)
-{
-    result.Resize(result.MaxSize());
-
-    int ret = mbedtls_x509_dn_gets(result.Get(), result.Size(), &dn);
-    ASSERT_TRUE(ret > 0);
-    result.Resize(ret);
-}
-
-void ParsePrivateKey(const String& pemCAKey, mbedtls_pk_context& privKey)
-{
-    mbedtls_ctr_drbg_context ctrDrbg;
-    mbedtls_entropy_context  entropy;
-
-    mbedtls_ctr_drbg_init(&ctrDrbg);
-    mbedtls_entropy_init(&entropy);
-
-    const char* pers = "test";
-
-    int ret = mbedtls_ctr_drbg_seed(&ctrDrbg, mbedtls_entropy_func, &entropy, (const uint8_t*)pers, strlen(pers));
-    ASSERT_EQ(ret, 0);
-
-    ret = mbedtls_pk_parse_key(&privKey, reinterpret_cast<const uint8_t*>(pemCAKey.Get()), pemCAKey.Size() + 1, nullptr,
-        0, mbedtls_ctr_drbg_random, &ctrDrbg);
-    ASSERT_EQ(ret, 0);
-
-    mbedtls_entropy_free(&entropy);
-    mbedtls_ctr_drbg_free(&ctrDrbg);
-}
-
-RetWithError<StaticString<100>> ConvertToString(const Time& time)
-{
-    StaticString<100> result;
-
-    result.Resize(result.MaxSize());
-
-    int  day = 0, month = 0, year = 0, hour = 0, min = 0, sec = 0;
-    auto err = time.GetDate(&day, &month, &year);
-    if (!err.IsNone()) {
-        return {"", err};
-    }
-
-    err = time.GetTime(&hour, &min, &sec);
-    if (!err.IsNone()) {
-        return {"", err};
-    }
-
-    snprintf(result.Get(), result.Size(), "%04d%02d%02d%02d%02d%02d", year, month, day, hour, min, sec);
-
-    result.Resize(strlen(result.CStr()));
-
-    return {result, ErrorEnum::eNone};
-}
-
-// Implementation is based on https://github.com/Mbed-TLS/mbedtls/blob/development/programs/x509/cert_write.c
-void CreateClientCert(const mbedtls_x509_csr& csr, const mbedtls_pk_context& caKey, const mbedtls_x509_crt& caCert,
-    const Array<uint8_t>& serial, String& pemClientCert)
-{
-    mbedtls_x509write_cert clientCert;
-
-    mbedtls_x509write_crt_init(&clientCert);
-
-    mbedtls_x509write_crt_set_md_alg(&clientCert, mbedtls_md_get_type(mbedtls_md_info_from_string("SHA256")));
-
-    // set CSR properties
-    StaticString<crypto::cCertSubjSize> subject;
-
-    ParseDN(csr.subject, subject);
-
-    int ret = mbedtls_x509write_crt_set_subject_name(&clientCert, subject.Get());
-    ASSERT_EQ(ret, 0);
-
-    mbedtls_x509write_crt_set_subject_key(&clientCert, const_cast<mbedtls_pk_context*>(&csr.pk));
-
-    // set CA certificate properties
-    StaticString<crypto::cCertIssuerSize> issuer;
-
-    ParseDN(caCert.subject, issuer);
-
-    ret = mbedtls_x509write_crt_set_issuer_name(&clientCert, issuer.Get());
-    ASSERT_EQ(ret, 0);
-
-    // set CA key
-    mbedtls_x509write_crt_set_issuer_key(&clientCert, const_cast<mbedtls_pk_context*>(&caKey));
-
-    // set additional properties
-    ret = mbedtls_x509write_crt_set_serial_raw(&clientCert, const_cast<uint8_t*>(serial.Get()), serial.Size());
-    ASSERT_EQ(ret, 0);
-
-    Error             err = ErrorEnum::eNone;
-    StaticString<100> notBefore, notAfter;
-
-    Tie(notBefore, err) = ConvertToString(Time::Now());
-    ASSERT_TRUE(err.IsNone());
-
-    Tie(notAfter, err) = ConvertToString(Time::Now().Add(Years(1)));
-    ASSERT_TRUE(err.IsNone());
-
-    ret = mbedtls_x509write_crt_set_validity(&clientCert, notBefore.CStr(), notAfter.CStr());
-    ASSERT_EQ(ret, 0);
-
-    // write client certificate to the buffer
-    pemClientCert.Resize(pemClientCert.MaxSize());
-
-    ret = mbedtls_x509write_crt_pem(&clientCert, reinterpret_cast<uint8_t*>(pemClientCert.Get()),
-        pemClientCert.Size() + 1, mbedtls_ctr_drbg_random, nullptr);
-    ASSERT_EQ(ret, 0);
-
-    pemClientCert.Resize(strlen(pemClientCert.Get()));
-
-    // free
-    mbedtls_x509write_crt_free(&clientCert);
-}
-
-void CreateClientCert(const String& pemCSR, const String& pemCAKey, const String& pemCACert,
-    const Array<uint8_t>& serial, String& pemClientCert)
-{
-    // parse CSR
-    mbedtls_x509_csr csr;
-
-    mbedtls_x509_csr_init(&csr);
-    auto ret = mbedtls_x509_csr_parse(&csr, reinterpret_cast<const uint8_t*>(pemCSR.Get()), pemCSR.Size() + 1);
-    ASSERT_EQ(ret, 0);
-
-    // parse CA key
-    mbedtls_pk_context caKey;
-
-    mbedtls_pk_init(&caKey);
-    ParsePrivateKey(pemCAKey, caKey);
-
-    // parse CA cert
-    mbedtls_x509_crt caCrt;
-
-    mbedtls_x509_crt_init(&caCrt);
-    ret = mbedtls_x509_crt_parse(&caCrt, reinterpret_cast<const uint8_t*>(pemCACert.CStr()), pemCACert.Size() + 1);
-    ASSERT_EQ(ret, 0);
-
-    // create client certificate
-    CreateClientCert(csr, caKey, caCrt, serial, pemClientCert);
-
-    // free
-    mbedtls_x509_crt_free(&caCrt);
-    mbedtls_pk_free(&caKey);
-    mbedtls_x509_csr_free(&csr);
-}
-
 void CheckCSRValid(const String& pemCSR)
 {
     mbedtls_x509_csr csr;
@@ -319,7 +173,8 @@ RetWithError<StaticString<pkcs11::cPINLength>> ReadPIN(const String& file)
     return {pin, err};
 }
 
-void ApplyCertificate(CertHandler& handler, const String& certType, const String& pin)
+void ApplyCertificate(
+    CertHandler& handler, crypto::x509::ProviderItf& cryptoProvider, const String& certType, const String& pin)
 {
     StaticString<crypto::cCSRPEMLen> csr;
     ASSERT_TRUE(handler.CreateKey(certType, "Aos Core", pin, csr).IsNone());
@@ -335,7 +190,7 @@ void ApplyCertificate(CertHandler& handler, const String& certType, const String
     auto     serial    = Array<uint8_t>(reinterpret_cast<uint8_t*>(&serialNum), sizeof(serialNum));
     StaticString<crypto::cCertPEMLen> clientCertChain;
 
-    CreateClientCert(csr, caKey, caCert, serial, clientCertChain);
+    ASSERT_TRUE(cryptoProvider.CreateClientCert(csr, caKey, caCert, serial, clientCertChain).IsNone());
 
     // add CA cert to the chain
     clientCertChain.Append(caCert);
@@ -401,7 +256,7 @@ TEST_F(IAMTest, ApplyCertificate)
     auto     serial    = Array<uint8_t>(reinterpret_cast<uint8_t*>(&serialNum), sizeof(serialNum));
     StaticString<crypto::cCertPEMLen> clientCertChain;
 
-    CreateClientCert(csr, caKey, caCert, serial, clientCertChain);
+    ASSERT_TRUE(mCryptoProvider.CreateClientCert(csr, caKey, caCert, serial, clientCertChain).IsNone());
 
     // add CA cert to the chain
     clientCertChain.Append(caCert);
@@ -668,10 +523,10 @@ TEST_F(IAMTest, RenewCertificate)
     RegisterPKCS11Module("iam");
     ASSERT_TRUE(mCertHandler->SetOwner("iam", cPIN).IsNone());
 
-    ApplyCertificate(*mCertHandler, "iam", cPIN);
+    ApplyCertificate(*mCertHandler, mCryptoProvider, "iam", cPIN);
 
     RegisterPKCS11Module("sm");
-    ApplyCertificate(*mCertHandler, "sm", cPIN);
+    ApplyCertificate(*mCertHandler, mCryptoProvider, "sm", cPIN);
 
     mCertModules.Clear();
     mPKCS11Modules.Clear();
