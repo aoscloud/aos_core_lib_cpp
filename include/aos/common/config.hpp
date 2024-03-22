@@ -377,7 +377,7 @@
  * Maximum length of user PIN (password).
  */
 #ifndef AOS_CONFIG_PKCS11_PIN_LEN
-#define AOS_CONFIG_PKCS11_PIN_LEN 42
+#define AOS_CONFIG_PKCS11_PIN_LEN 30
 #endif
 
 /**
