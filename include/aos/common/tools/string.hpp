@@ -462,7 +462,6 @@ public:
         return {Size(), ErrorEnum::eNotFound};
     }
 
-private:
     static Pair<char, char> ByteToHex(uint8_t val)
     {
         constexpr char cDigits[] = "0123456789abcdef";
@@ -473,6 +472,7 @@ private:
         return {cDigits[high], cDigits[low]};
     }
 
+private:
     static RetWithError<uint8_t> HexToByte(char ch)
     {
         if (ch >= '0' && ch <= '9') {

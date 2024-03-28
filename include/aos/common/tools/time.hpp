@@ -10,6 +10,7 @@
 
 #include <time.h>
 
+#include "aos/common/config.hpp"
 #include "aos/common/tools/array.hpp"
 #include "aos/common/tools/log.hpp"
 #include "aos/common/tools/string.hpp"
@@ -20,6 +21,11 @@ namespace aos {
  * Base type for a time duration in nanoseconds. Can also be negative to set a point back in time.
  */
 using Duration = int64_t;
+
+/**
+ * Size of a time in string representation.
+ */
+const auto cTimeStrLength = AOS_TIME_STRING_LENGTH;
 
 /**
  * An object specifying a time instant.
@@ -251,6 +257,36 @@ public:
         log << utcTimeStr;
 
         return log;
+    }
+
+    /**
+     * Converts time into a string.
+     * Result string has the following format: yyyyMMddhhmmss
+     *
+     * @result RetWithError<StaticString<cTimeStrLength>>.
+     */
+    RetWithError<StaticString<cTimeStrLength>> ToString() const
+    {
+        StaticString<cTimeStrLength> result;
+
+        result.Resize(result.MaxSize());
+
+        int  day = 0, month = 0, year = 0, hour = 0, min = 0, sec = 0;
+        auto err = GetDate(&day, &month, &year);
+        if (!err.IsNone()) {
+            return {"", err};
+        }
+
+        err = GetTime(&hour, &min, &sec);
+        if (!err.IsNone()) {
+            return {"", err};
+        }
+
+        snprintf(result.Get(), result.Size(), "%04d%02d%02d%02d%02d%02d", year, month, day, hour, min, sec);
+
+        result.Resize(strlen(result.CStr()));
+
+        return {result, ErrorEnum::eNone};
     }
 
 private:
